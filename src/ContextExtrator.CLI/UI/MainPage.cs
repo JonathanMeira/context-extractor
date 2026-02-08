@@ -1,0 +1,242 @@
+using System;
+using System.Reactive.Linq;
+using ContextExtrator.Domain.Models;
+using Termina.Extensions;
+using Termina.Input;
+using Termina.Layout;
+using Termina.Reactive;
+
+namespace ContextExtrator.CLI.UI;
+
+public class MainPage : ReactivePage<MainViewModel>
+{
+    protected override void OnBound()
+    {
+        base.OnBound();
+
+        // Start analysis on Enter key
+        ViewModel.Input.OfType<KeyPressed>()
+            .Where(k => k.KeyInfo.Key == ConsoleKey.Enter && !ViewModel.IsAnalyzing)
+            .Subscribe(_ => 
+            { 
+                //var task = ViewModel.StartAnalysis();
+            })
+            .DisposeWith(Subscriptions);
+
+        // Cancel analysis or exit on ESC key
+        ViewModel.Input.OfType<KeyPressed>()
+            .Where(k => k.KeyInfo.Key == ConsoleKey.Escape)
+            .Subscribe(_ =>
+            {
+                if (ViewModel.IsAnalyzing)
+                {
+                    ViewModel.CancelAnalysis();
+                }
+                else
+                {
+                    // Exit the application
+                    Environment.Exit(0);
+                }
+            })
+            .DisposeWith(Subscriptions);
+    }
+
+    public override ILayoutNode BuildLayout()
+    {
+        return Layouts.Vertical()
+            .WithChild(
+                new Termina.Layout.PanelNode()
+                    .WithTitle("Dependency Extractor")
+                    .WithContent(
+                        ViewModel.ProjectRootChanged
+                            .Select(root => new Termina.Layout.TextNode($"Root: {root}"))
+                            .AsLayout())
+                    .Height(3))
+             .WithChild(
+                new Termina.Layout.PanelNode()
+                    .WithTitle("Projects (↑↓ to select)")
+                    .WithContent(
+                        ViewModel.ProjectFilesChanged
+                            .Select(discoveredProjects =>
+                            {
+                                if (discoveredProjects is { Count: 0 })
+                                {
+                                    return (ILayoutNode) new TextNode("No projects found for current root");
+                                }
+
+                                var node = new SelectionListNode<FileNode>(discoveredProjects, project => project.Name)
+                                    .WithMode(SelectionMode.Single)
+                                    .WithShowNumbers()
+                                    .WithVisibleRows(5);
+
+                                node.SelectionConfirmed
+                                    .Subscribe(selected =>
+                                    {
+                                        ViewModel.SelectedProjectFile = selected[0];
+                                    })
+                                    .DisposeWith(Subscriptions);
+
+                                Focus.PushFocus(node);
+                                return node;
+                            })
+                            .AsLayout())
+                    .Height(7))
+            .WithChild(
+                Layouts.Horizontal()
+                    .WithChild(
+                        new PanelNode()
+                            .WithTitle("Files (↑↓ navigate, Enter select)")
+                            .WithContent(
+                                ViewModel.FileTreeChanged
+                                    .Select(tree =>
+                                    {
+                                        if (ViewModel.SelectedProjectFile == null)
+                                            return (ILayoutNode)new TextNode("(select a project)");
+
+                                        if (tree == null || tree.Count == 0)
+                                            return new TextNode("(no files found)");
+
+                                        // Flatten tree into an indented list of FileNode for display
+                                        var flat = new List<FileNode>();
+
+                                        void Recurse(FileTreeNode item, int depth)
+                                        {
+                                            var display = new string(' ', depth * 2) + item.Node.Name + (item.Node.IsDirectory ? "/" : "");
+                                            flat.Add(new FileNode(display, item.Node.Path, item.Node.IsDirectory));
+                                            foreach (var c in item.Children)
+                                                Recurse(c, depth + 1);
+                                        }
+
+                                        foreach (var root in tree)
+                                            Recurse(root, 0);
+
+                                        var node = new SelectionListNode<FileNode>(
+                                                flat,
+                                                f => f.Name)
+                                            .WithMode(SelectionMode.Single)
+                                            .WithShowNumbers(false)
+                                            .WithVisibleRows(10);
+
+                                        node.SelectionConfirmed
+                                            .Subscribe(selected =>
+                                            {
+                                                if (selected.FirstOrDefault() is FileNode file && !file.IsDirectory)
+                                                    ViewModel.SelectedFile = file;
+                                            })
+                                            .DisposeWith(Subscriptions);
+
+                                        return (ILayoutNode)node;
+                                    })
+                                    .AsLayout())
+                            .Width(35))
+                    .WithChild(
+                        Layouts.Vertical()
+                            .WithChild(
+                                new Termina.Layout.PanelNode()
+                                    .WithTitle("Symbols (↑↓ navigate, Enter select)")
+                                    .WithContent(
+                                        ViewModel.SymbolsChanged
+                                            .Select(symbols =>
+                                            {
+                                                if (ViewModel.SelectedFile == null)
+                                                    return (ILayoutNode)new Termina.Layout.TextNode("(select a file)");
+
+                                                if (symbols.Count == 0)
+                                                    return new Termina.Layout.TextNode("(no symbols found)");
+
+                                                var node = new Termina.Layout.SelectionListNode<SymbolNode>(
+                                                        symbols,
+                                                        s => s.Name)
+                                                    .WithMode(Termina.Layout.SelectionMode.Single)
+                                                    .WithShowNumbers(true)
+                                                    .WithVisibleRows(6);
+
+                                                node.SelectionConfirmed
+                                                    .Subscribe(selected =>
+                                                    {
+                                                        if (selected.FirstOrDefault() is SymbolNode symbol)
+                                                            ViewModel.SelectedSymbol = symbol;
+                                                    })
+                                                    .DisposeWith(Subscriptions);
+
+                                                return (ILayoutNode)node;
+                                            })
+                                            .AsLayout())
+                                    .Height(6))
+                            .WithChild(BuildProgressPanel())
+                            .WithChild(
+                                new Termina.Layout.PanelNode()
+                                    .WithTitle("Dependencies")
+                                    .WithContent(
+                                        ViewModel.DependenciesChanged
+                                            .Select(list => new Termina.Layout.TextNode(
+                                                list.Count > 0
+                                                    ? string.Join("\n", list.Select(d => $"{d.Name}"))
+                                                    : "(select a symbol)"))
+                                            .AsLayout())
+                                    .Fill())
+                            .Fill()))
+            .WithChild(
+                Layouts.Horizontal()
+                    .WithChild(new Termina.Layout.TextNode("Projects/Files: ↑↓ navigate, Enter select | Esc quit").NoWrap())
+                    .Height(1));
+    }
+
+    private ILayoutNode BuildProgressPanel()
+    {
+        return new Termina.Layout.PanelNode()
+            .WithTitle("Progress (Press ESC to cancel)")
+            .WithContent(
+                ViewModel.ProgressStream
+                    .Select(progress =>
+                    {
+                        var phaseText = progress.Phase switch
+                        {
+                            AnalysisPhase.Scanning => "📋 Scanning files...",
+                            AnalysisPhase.Analyzing => "🔍 Analyzing symbols...",
+                            AnalysisPhase.BuildingGraph => "📊 Building dependency graph...",
+                            AnalysisPhase.Complete => "✓ Complete",
+                            AnalysisPhase.Error => "✗ Error occurred",
+                            _ => "Idle"
+                        };
+
+                        if (progress.Phase == AnalysisPhase.Complete)
+                        {
+                            // Show completion message with summary
+                            return new Termina.Layout.TextNode(
+                                $"{phaseText}\n" +
+                                $"Files: {progress.FilesProcessed} | Symbols: {progress.FilesProcessed}\n" +
+                                $"✓ Analysis finished");
+                        }
+                        else if (progress.Phase == AnalysisPhase.Error)
+                        {
+                            return new Termina.Layout.TextNode(
+                                $"{phaseText}\n" +
+                                $"{progress.CurrentFile}");
+                        }
+                        else if (progress.TotalFiles > 0)
+                        {
+                            // Show progress during active analysis
+                            var progressBar = GetProgressBar(progress.FilesProcessed, progress.TotalFiles);
+                            return new Termina.Layout.TextNode(
+                                $"{phaseText}\n" +
+                                $"[{progressBar}]\n" +
+                                $"{progress.FilesProcessed}/{progress.TotalFiles} • {Path.GetFileName(progress.CurrentFile)}\n" +
+                                $"Press ESC to cancel");
+                        }
+                        else
+                        {
+                            return new Termina.Layout.TextNode($"{phaseText}\n{progress.CurrentFile}");
+                        }
+                    })
+                    .AsLayout())
+            .Height(7);
+    }
+
+    private string GetProgressBar(int current, int total, int width = 15)
+    {
+        if (total == 0) return new string('░', width);
+        int filled = (int)((float)current / total * width);
+        return new string('█', filled) + new string('░', width - filled);
+    }
+}
