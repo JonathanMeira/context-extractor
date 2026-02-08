@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ContextExtrator.App/ContextExtrator.App.csproj" Id="8d11f464-11f6-4a27-bd79-1f4cb137c32e" />
+    <Project Path="src/ContextExtrator.CLI/ContextExtrator.CLI.csproj" />
+    <Project Path="src/ContextExtrator.Domain/ContextExtrator.Domain.csproj" Id="3e9a67c0-cdc4-411e-8624-05d0fa018c3c" />
+  </Folder>
+  <Folder Name="/tests/" />
+</Solution>
