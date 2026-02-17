@@ -16,7 +16,7 @@ public class RoslynAnalyzer : IRoslynAnalyzer
     private Project? _currentProject;
 
     /// <summary>
-    /// Enumerate all .cs files in a project by providing an explicit .csproj or .slnx file path.
+    /// Enumerate all .cs files in a project by providing an explicit .csproj or .sln file path.
     /// </summary>
     public async IAsyncEnumerable<FileNode> EnumerateFilesForProjectAsync(string projectFilePath, [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -26,18 +26,9 @@ public class RoslynAnalyzer : IRoslynAnalyzer
         }
 
         _workspace ??= MSBuildWorkspace.Create();
-        Project? project = _workspace
-            .CurrentSolution
-            .Projects
-            .FirstOrDefault(p => string.Equals(p.FilePath, projectFilePath, StringComparison.OrdinalIgnoreCase));
-
-        if (project is null && projectFilePath.EndsWith(".sln"))
-        {
-            var solution = await _workspace.OpenSolutionAsync(projectFilePath, null, ct).ConfigureAwait(false);
-            project = solution.Projects.FirstOrDefault();
-        }
-
-        _currentProject ??= await _workspace.OpenProjectAsync(projectFilePath, null, ct).ConfigureAwait(false);
+        _currentProject = projectFilePath.EndsWith(".sln") 
+            ? await GetSolutionFirstProjectAsync(projectFilePath, ct)
+            : await GetProjectForFileAsync(projectFilePath, ct);
 
         foreach (Document document in _currentProject?.Documents ?? [])
         {
@@ -134,6 +125,32 @@ public class RoslynAnalyzer : IRoslynAnalyzer
             System.Diagnostics.Debug.WriteLine($"Error extracting dependencies: {ex.Message}");
             return Array.Empty<GraphNode>();
         }
+    }
+
+    private async Task<Project?> GetSolutionFirstProjectAsync(string projectFilePath, CancellationToken ct)
+    {
+        var solution = await _workspace!
+            .OpenSolutionAsync(projectFilePath, null, ct)
+            .ConfigureAwait(false);
+
+        return solution.Projects.FirstOrDefault();
+    }
+
+    private async Task<Project?> GetProjectForFileAsync(string projectFilePath, CancellationToken ct)
+    {
+        Project? projectFromCache = _workspace!
+            .CurrentSolution
+            .Projects
+            .FirstOrDefault(p => string.Equals(p.FilePath, projectFilePath, StringComparison.OrdinalIgnoreCase));
+
+        if (projectFromCache is not null)
+        {
+            return projectFromCache;
+        }
+
+        return await _workspace
+            .OpenProjectAsync(projectFilePath, null, ct)
+            .ConfigureAwait(false);
     }
 }
 
