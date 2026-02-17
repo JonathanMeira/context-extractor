@@ -16,15 +16,6 @@ public class RoslynAnalyzer : IRoslynAnalyzer
     private Project? _currentProject;
 
     /// <summary>
-    /// Enumerate all .cs files in a project by providing a project directory.
-    /// Automatically locates .csproj or .slnx files.
-    /// </summary>
-    public async Task<FileNode[]> EnumerateFilesAsync(string projectPathOrDirectory, CancellationToken ct = default)
-    {
-        return Array.Empty<FileNode>();
-    }
-
-    /// <summary>
     /// Enumerate all .cs files in a project by providing an explicit .csproj or .slnx file path.
     /// </summary>
     public async IAsyncEnumerable<FileNode> EnumerateFilesForProjectAsync(string projectFilePath, [EnumeratorCancellation] CancellationToken ct = default)
