@@ -53,16 +53,22 @@ public class MainPage : ReactivePage<MainViewModel>
                     return;
                 }
 
-                bool pressedShift = k.KeyInfo.Modifiers == ConsoleModifiers.Shift;
-                if (pressedShift)
+                List<IFocusable?> panels = [_projectsNode, _filesNode, _symbolsNode, _depsNode];
+
+                int currentIndex = panels.IndexOf(Focus.CurrentFocus);
+             
+                bool isFirstNode = currentIndex == 0;
+                bool isShiftPressed = k.KeyInfo.Modifiers == ConsoleModifiers.Shift;
+                if (isFirstNode && isShiftPressed)
+                {
+                    return;
+                }
+
+                if (isShiftPressed)
                 {
                     Focus.PopFocus();
                     return;
                 }
-
-                List<IFocusable?> panels = [_projectsNode, _filesNode, _symbolsNode, _depsNode];
-
-                int currentIndex = panels.IndexOf(Focus.CurrentFocus);
 
                 bool shouldResetFocus = currentIndex == -1;
                 if (shouldResetFocus)
@@ -72,10 +78,9 @@ public class MainPage : ReactivePage<MainViewModel>
                 }
 
                 bool lastIndex = currentIndex == panels.Count - 1;
-                if (lastIndex) 
+                if (lastIndex)
                 {
                     Focus.PushFocus(panels[0]!);
-                    Focus.PopFocus();
                     return;
                 }
 
