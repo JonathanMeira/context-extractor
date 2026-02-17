@@ -1,36 +1,24 @@
-using System;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reactive.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using ContextExtrator.App.Services;
 using ContextExtrator.Domain.Analysis;
 using ContextExtrator.Domain.Models;
-using Termina.Input;
+using System.Reactive.Linq;
 using Termina.Reactive;
 
 namespace ContextExtrator.CLI.UI;
 
 public partial class MainViewModel : ReactiveViewModel
 {
-    private readonly IContextAnalysisService _analysisService;
     private readonly IRoslynAnalyzer _roslynAnalyzer;
     private readonly IDiscoveryService _discoveryService;
     private CancellationTokenSource? _analysisCancellation;
 
-    public MainViewModel(IContextAnalysisService analysisService, IRoslynAnalyzer roslynAnalyzer, IDiscoveryService discoveryService)
+    public MainViewModel(IRoslynAnalyzer roslynAnalyzer, IDiscoveryService discoveryService)
     {
-        _analysisService = analysisService;
         _roslynAnalyzer = roslynAnalyzer;
         _discoveryService = discoveryService;
-        ProgressStream = Observable.Empty<AnalysisProgress>();
     }
 
     [Reactive] private string _projectRoot = "E:\\workspaces\\ws-dotnet-2026\\context-extractor";
-    
+
     [Reactive] private List<FileNode> _projectFiles = [];
     [Reactive] private FileNode? _selectedProjectFile;
 
@@ -42,7 +30,6 @@ public partial class MainViewModel : ReactiveViewModel
     [Reactive] private int _filesProcessed;
     [Reactive] private int _filesScanned;
     [Reactive] private int _symbolsExtracted;
-    [Reactive] private AnalysisPhase _currentPhase = AnalysisPhase.Scanning;
     [Reactive] private bool _isAnalyzing;
     [Reactive] private FileNode? _selectedFile;
     [Reactive] private SymbolNode? _selectedSymbol;
@@ -50,16 +37,13 @@ public partial class MainViewModel : ReactiveViewModel
 
     [Reactive] private List<Domain.Models.FileTreeNode> _fileTree = new();
 
-    public IObservable<AnalysisProgress> ProgressStream { get; private set; }
 
     public override void OnActivated()
     {
         ProjectRootChanged
             .Where(r => !string.IsNullOrWhiteSpace(r))
-            .Subscribe(rootChange => 
-            { 
-                _analysisService.ClearCache();
-
+            .Subscribe(rootChange =>
+            {
                 IEnumerable<FileNode> projects = _discoveryService.EnumerateProjects(rootChange);
                 ProjectFiles = [.. projects];
             })

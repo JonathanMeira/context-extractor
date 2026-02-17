@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using ContextExtrator.Domain.Models;
+using System.Reactive.Linq;
 using Termina.Extensions;
 using Termina.Input;
 using Termina.Layout;
@@ -223,7 +224,6 @@ public class MainPage : ReactivePage<MainViewModel>
                                             })
                                             .AsLayout())
                                     .Height(6))
-                            .WithChild(BuildProgressPanel())
                             .WithChild(
                                 new Termina.Layout.PanelNode()
                                     .WithTitle("Dependencies")
@@ -254,63 +254,5 @@ public class MainPage : ReactivePage<MainViewModel>
                 Layouts.Horizontal()
                     .WithChild(new Termina.Layout.TextNode("Projects/Files: ↑↓ navigate, Enter select | Esc quit").NoWrap())
                     .Height(1));
-    }
-
-    private ILayoutNode BuildProgressPanel()
-    {
-        return new Termina.Layout.PanelNode()
-            .WithTitle("Progress (Press ESC to cancel)")
-            .WithContent(
-                ViewModel.ProgressStream
-                    .Select(progress =>
-                    {
-                        var phaseText = progress.Phase switch
-                        {
-                            AnalysisPhase.Scanning => "📋 Scanning files...",
-                            AnalysisPhase.Analyzing => "🔍 Analyzing symbols...",
-                            AnalysisPhase.BuildingGraph => "📊 Building dependency graph...",
-                            AnalysisPhase.Complete => "✓ Complete",
-                            AnalysisPhase.Error => "✗ Error occurred",
-                            _ => "Idle"
-                        };
-
-                        if (progress.Phase == AnalysisPhase.Complete)
-                        {
-                            // Show completion message with summary
-                            return new Termina.Layout.TextNode(
-                                $"{phaseText}\n" +
-                                $"Files: {progress.FilesProcessed} | Symbols: {progress.FilesProcessed}\n" +
-                                $"✓ Analysis finished");
-                        }
-                        else if (progress.Phase == AnalysisPhase.Error)
-                        {
-                            return new Termina.Layout.TextNode(
-                                $"{phaseText}\n" +
-                                $"{progress.CurrentFile}");
-                        }
-                        else if (progress.TotalFiles > 0)
-                        {
-                            // Show progress during active analysis
-                            var progressBar = GetProgressBar(progress.FilesProcessed, progress.TotalFiles);
-                            return new Termina.Layout.TextNode(
-                                $"{phaseText}\n" +
-                                $"[{progressBar}]\n" +
-                                $"{progress.FilesProcessed}/{progress.TotalFiles} • {Path.GetFileName(progress.CurrentFile)}\n" +
-                                $"Press ESC to cancel");
-                        }
-                        else
-                        {
-                            return new Termina.Layout.TextNode($"{phaseText}\n{progress.CurrentFile}");
-                        }
-                    })
-                    .AsLayout())
-            .Height(7);
-    }
-
-    private string GetProgressBar(int current, int total, int width = 15)
-    {
-        if (total == 0) return new string('░', width);
-        int filled = (int)((float)current / total * width);
-        return new string('█', filled) + new string('░', width - filled);
     }
 }

@@ -14,7 +14,6 @@ internal static class Program
         builder.Services.AddTransient<UI.MainViewModel>();
         builder.Services.AddSingleton<Domain.Analysis.IRoslynAnalyzer, Domain.Analysis.RoslynAnalyzer>();
         builder.Services.AddSingleton<Domain.Analysis.IDiscoveryService, Domain.Analysis.DiscoveryService>();
-        builder.Services.AddSingleton<App.Services.IContextAnalysisService, App.Services.ContextAnalysisService>();
 
         // Register Termina and route
         builder.Services.AddTermina("/", termina =>
