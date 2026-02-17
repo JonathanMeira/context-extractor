@@ -30,7 +30,6 @@ public partial class MainViewModel : ReactiveViewModel
 
     [Reactive] private List<GraphNode> _dependencies = new();
 
-
     public override void OnActivated()
     {
         ProjectRootChanged
@@ -46,10 +45,8 @@ public partial class MainViewModel : ReactiveViewModel
             .Where(f => f is not null)
             .Do(_ =>
             {
-                SelectedFile = null;
-                Symbols = [];
-                SelectedSymbol = null;
-                Dependencies = [];
+                ClearCurrentFileSelection();
+                ClearCurrentSymbols();
             })
             .SelectMany(selectedProject => Observable.FromAsync(() => EnumerateProjectFilesAsync(selectedProject!)))
             .Subscribe(tree => FileTree = [.. tree])
@@ -59,8 +56,7 @@ public partial class MainViewModel : ReactiveViewModel
             .Where(f => f is not null)
             .Do(_ =>
             {
-                SelectedSymbol = null;
-                Dependencies = [];
+                ClearCurrentSymbols();
             })
             .SelectMany(file => Observable.FromAsync(() => ExtractSymbolsForFileAsync(file!)))
             .Subscribe(symbols => Symbols = [.. symbols])
@@ -93,5 +89,22 @@ public partial class MainViewModel : ReactiveViewModel
             .ExtractDependenciesAsync(symbol, CancellationToken.None)
             .ConfigureAwait(false);
     }
-}
 
+    #region Helper Methods
+
+    private void ClearCurrentFileSelection()
+    {
+        FileTree = [];
+        SelectedFile = null;
+    }
+
+    private void ClearCurrentSymbols()
+    {
+        Symbols = [];
+        SelectedSymbol = null;
+        Dependencies = [];
+    }
+
+    #endregion
+
+}

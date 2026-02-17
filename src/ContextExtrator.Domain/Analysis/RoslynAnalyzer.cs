@@ -11,7 +11,7 @@ namespace ContextExtrator.Domain.Analysis;
 /// </summary>
 public class RoslynAnalyzer : IRoslynAnalyzer
 {
-    private readonly SymbolExtractor _extractor = new();
+    private SymbolExtractor? _extractor;
     private MSBuildWorkspace? _workspace;
     private Project? _currentProject;
 
@@ -87,7 +87,8 @@ public class RoslynAnalyzer : IRoslynAnalyzer
 
             var root = await syntaxTree.GetRootAsync(ct).ConfigureAwait(false);
             var symbols = new List<SymbolNode>();
-
+            
+            _extractor = new();
             _extractor.Visit(root);
             return _extractor.ExtractedSymbols.ToArray();
         }

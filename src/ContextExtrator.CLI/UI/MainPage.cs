@@ -119,10 +119,16 @@ public class MainPage : ReactivePage<MainViewModel>
                                     .Select(tree =>
                                     {
                                         if (ViewModel.SelectedProjectFile == null)
+                                        {
+                                            _filesNode = null;
                                             return (ILayoutNode)new TextNode("(select a project)");
+                                        }
 
                                         if (tree == null || tree.Count == 0)
+                                        {
+                                            _filesNode = null;
                                             return new TextNode("(no files found)");
+                                        }
 
                                         // Flatten tree into an indented list of FileNode for display
                                         var flat = new List<FileNode>();
@@ -173,10 +179,16 @@ public class MainPage : ReactivePage<MainViewModel>
                                             .Select(symbols =>
                                             {
                                                 if (ViewModel.SelectedFile == null)
+                                                {
+                                                    _symbolsNode = null;
                                                     return (ILayoutNode)new Termina.Layout.TextNode("(select a file)");
+                                                }
 
                                                 if (symbols.Count == 0)
+                                                {
+                                                    _symbolsNode = null;
                                                     return new Termina.Layout.TextNode("(no symbols found)");
+                                                }
 
                                                 var node = new Termina.Layout.SelectionListNode<SymbolNode>(
                                                         symbols,
@@ -208,7 +220,10 @@ public class MainPage : ReactivePage<MainViewModel>
                                             .Select(list =>
                                             {
                                                 if (list.Count == 0)
+                                                {
+                                                    _depsNode = null;
                                                     return (ILayoutNode)new Termina.Layout.TextNode("(select a symbol)");
+                                                }
 
                                                 var names = list.Select(d => d.Name).ToList();
                                                 var node = new Termina.Layout.SelectionListNode<string>(
