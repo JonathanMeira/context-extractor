@@ -1,4 +1,3 @@
-using System;
 using System.Reactive.Linq;
 using ContextExtrator.Domain.Models;
 using Termina.Extensions;
@@ -10,6 +9,10 @@ namespace ContextExtrator.CLI.UI;
 
 public class MainPage : ReactivePage<MainViewModel>
 {
+    private SelectionListNode<FileNode>? _projectsNode;
+    private SelectionListNode<FileNode>? _filesNode;
+    private SelectionListNode<SymbolNode>? _symbolsNode;
+    private SelectionListNode<string>? _depsNode;
     protected override void OnBound()
     {
         base.OnBound();
@@ -36,6 +39,51 @@ public class MainPage : ReactivePage<MainViewModel>
                 {
                     // Exit the application
                     Environment.Exit(0);
+                }
+            })
+            .DisposeWith(Subscriptions);
+
+        ViewModel.Input.OfType<KeyPressed>()
+            .Where(k => k.KeyInfo.Key == ConsoleKey.Tab)
+            .Subscribe(k =>
+            {
+                bool hasFocused = Focus.CurrentFocus is not null;
+                if (!hasFocused)
+                {
+                    return;
+                }
+
+                bool pressedShift = k.KeyInfo.Modifiers == ConsoleModifiers.Shift;
+                if (pressedShift)
+                {
+                    Focus.PopFocus();
+                    return;
+                }
+
+                List<IFocusable?> panels = [_projectsNode, _filesNode, _symbolsNode, _depsNode];
+
+                int currentIndex = panels.IndexOf(Focus.CurrentFocus);
+
+                bool shouldResetFocus = currentIndex == -1;
+                if (shouldResetFocus)
+                {
+                    Focus.PopFocus();
+                    return;
+                }
+
+                bool lastIndex = currentIndex == panels.Count - 1;
+                if (lastIndex) 
+                {
+                    Focus.PushFocus(panels[0]!);
+                    Focus.PopFocus();
+                    return;
+                }
+
+                bool hasNodeBeenCreated = panels[currentIndex + 1] is not null;
+
+                if (hasNodeBeenCreated)
+                {
+                    Focus.PushFocus(panels[currentIndex + 1]!);
                 }
             })
             .DisposeWith(Subscriptions);
@@ -76,6 +124,7 @@ public class MainPage : ReactivePage<MainViewModel>
                                     })
                                     .DisposeWith(Subscriptions);
 
+                                _projectsNode = node;
                                 Focus.PushFocus(node);
                                 return node;
                             })
@@ -125,7 +174,10 @@ public class MainPage : ReactivePage<MainViewModel>
                                             })
                                             .DisposeWith(Subscriptions);
 
-                                        return (ILayoutNode)node;
+                                        _filesNode = node;
+                                        Focus.PushFocus(node);
+
+                                        return node;
                                     })
                                     .AsLayout())
                             .Width(35))
@@ -159,7 +211,10 @@ public class MainPage : ReactivePage<MainViewModel>
                                                     })
                                                     .DisposeWith(Subscriptions);
 
-                                                return (ILayoutNode)node;
+                                                _symbolsNode = node;
+                                                Focus.PushFocus(node);
+
+                                                return node;
                                             })
                                             .AsLayout())
                                     .Height(6))
@@ -169,10 +224,24 @@ public class MainPage : ReactivePage<MainViewModel>
                                     .WithTitle("Dependencies")
                                     .WithContent(
                                         ViewModel.DependenciesChanged
-                                            .Select(list => new Termina.Layout.TextNode(
-                                                list.Count > 0
-                                                    ? string.Join("\n", list.Select(d => $"{d.Name}"))
-                                                    : "(select a symbol)"))
+                                            .Select(list =>
+                                            {
+                                                if (list.Count == 0)
+                                                    return (ILayoutNode)new Termina.Layout.TextNode("(select a symbol)");
+
+                                                var names = list.Select(d => d.Name).ToList();
+                                                var node = new Termina.Layout.SelectionListNode<string>(
+                                                    names,
+                                                    s => s)
+                                                    .WithMode(Termina.Layout.SelectionMode.Single)
+                                                    .WithShowNumbers(false)
+                                                    .WithVisibleRows(6);
+
+                                                _depsNode = node;
+                                                Focus.PushFocus(node);
+
+                                                return (ILayoutNode)node;
+                                            })
                                             .AsLayout())
                                     .Fill())
                             .Fill()))
