@@ -1,16 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 using ContextExtrator.Domain.Models;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
+using System.Runtime.CompilerServices;
 
 namespace ContextExtrator.Domain.Analysis;
 
@@ -20,6 +11,7 @@ namespace ContextExtrator.Domain.Analysis;
 /// </summary>
 public class RoslynAnalyzer : IRoslynAnalyzer
 {
+    private readonly SymbolExtractor _extractor = new();
     private MSBuildWorkspace? _workspace;
     private Project? _currentProject;
 
@@ -55,7 +47,7 @@ public class RoslynAnalyzer : IRoslynAnalyzer
         }
 
         _currentProject ??= await _workspace.OpenProjectAsync(projectFilePath, null, ct).ConfigureAwait(false);
-        
+
         foreach (Document document in _currentProject?.Documents ?? [])
         {
             ct.ThrowIfCancellationRequested();
@@ -114,11 +106,8 @@ public class RoslynAnalyzer : IRoslynAnalyzer
             var root = await syntaxTree.GetRootAsync(ct).ConfigureAwait(false);
             var symbols = new List<SymbolNode>();
 
-            // Walk the syntax tree and extract top-level symbols
-            var walker = new SymbolExtractor();
-            walker.Visit(root);
-
-            return walker.ExtractedSymbols.ToArray();
+            _extractor.Visit(root);
+            return _extractor.ExtractedSymbols.ToArray();
         }
         catch (Exception ex)
         {
@@ -154,126 +143,6 @@ public class RoslynAnalyzer : IRoslynAnalyzer
             System.Diagnostics.Debug.WriteLine($"Error extracting dependencies: {ex.Message}");
             return Array.Empty<GraphNode>();
         }
-    }
-}
-
-/// <summary>
-/// Syntax tree walker to extract symbol information from a compilation unit.
-/// </summary>
-internal class SymbolExtractor : CSharpSyntaxWalker
-{
-    public List<SymbolNode> ExtractedSymbols { get; } = new();
-
-    public override void VisitClassDeclaration(ClassDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "class",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitClassDeclaration(node);
-    }
-
-    public override void VisitStructDeclaration(StructDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "struct",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitStructDeclaration(node);
-    }
-
-    public override void VisitInterfaceDeclaration(InterfaceDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "interface",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitInterfaceDeclaration(node);
-    }
-
-    public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "method",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitMethodDeclaration(node);
-    }
-
-    public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "property",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitPropertyDeclaration(node);
-    }
-
-    public override void VisitFieldDeclaration(FieldDeclarationSyntax node)
-    {
-        foreach (var variable in node.Declaration.Variables)
-        {
-            ExtractedSymbols.Add(new SymbolNode
-            {
-                Name = variable.Identifier.Text,
-                Kind = "field",
-                Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-                Parent = GetParentTypeName(node)
-            });
-        }
-
-        base.VisitFieldDeclaration(node);
-    }
-
-    public override void VisitEnumDeclaration(EnumDeclarationSyntax node)
-    {
-        ExtractedSymbols.Add(new SymbolNode
-        {
-            Name = node.Identifier.Text,
-            Kind = "enum",
-            Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
-            Parent = GetParentTypeName(node)
-        });
-
-        base.VisitEnumDeclaration(node);
-    }
-
-    private static string GetParentTypeName(SyntaxNode node)
-    {
-        var parent = node.Parent;
-        while (parent != null)
-        {
-            if (parent is ClassDeclarationSyntax classDecl)
-                return classDecl.Identifier.Text;
-            if (parent is StructDeclarationSyntax structDecl)
-                return structDecl.Identifier.Text;
-            if (parent is InterfaceDeclarationSyntax interfaceDecl)
-                return interfaceDecl.Identifier.Text;
-
-            parent = parent.Parent;
-        }
-
-        return string.Empty;
     }
 }
 
