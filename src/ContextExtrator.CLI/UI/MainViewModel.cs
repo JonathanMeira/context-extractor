@@ -9,7 +9,6 @@ public partial class MainViewModel : ReactiveViewModel
 {
     private readonly IRoslynAnalyzer _roslynAnalyzer;
     private readonly IDiscoveryService _discoveryService;
-    private CancellationTokenSource? _analysisCancellation;
 
     public MainViewModel(IRoslynAnalyzer roslynAnalyzer, IDiscoveryService discoveryService)
     {
@@ -23,19 +22,13 @@ public partial class MainViewModel : ReactiveViewModel
     [Reactive] private FileNode? _selectedProjectFile;
 
 
-    [Reactive] private List<FileNode> _files = [];
-    [Reactive] private List<SymbolNode> _symbols = [];
-
-
-    [Reactive] private int _filesProcessed;
-    [Reactive] private int _filesScanned;
-    [Reactive] private int _symbolsExtracted;
-    [Reactive] private bool _isAnalyzing;
+    [Reactive] private List<FileTreeNode> _fileTree = new();
     [Reactive] private FileNode? _selectedFile;
-    [Reactive] private SymbolNode? _selectedSymbol;
-    [Reactive] private List<GraphNode> _dependencies = new();
 
-    [Reactive] private List<Domain.Models.FileTreeNode> _fileTree = new();
+    [Reactive] private List<SymbolNode> _symbols = [];
+    [Reactive] private SymbolNode? _selectedSymbol;
+
+    [Reactive] private List<GraphNode> _dependencies = new();
 
 
     public override void OnActivated()
@@ -74,16 +67,10 @@ public partial class MainViewModel : ReactiveViewModel
             .DisposeWith(Subscriptions);
 
         SelectedSymbolChanged
-            .Where(s => s != null && SelectedProjectFile != null)
-            .SelectMany(symbol => ExtractDependenciesForSymbol(symbol!, _analysisCancellation?.Token ?? CancellationToken.None))
+            .Where(s => s is not null)
+            .SelectMany(symbol => Observable.FromAsync(() => ExtractDependenciesForSymbolAsync(symbol!)))
             .Subscribe(deps => Dependencies = [.. deps])
             .DisposeWith(Subscriptions);
-    }
-
-    public void CancelAnalysis()
-    {
-        _analysisCancellation?.Cancel();
-        IsAnalyzing = false;
     }
 
     private async Task<IEnumerable<FileTreeNode>> EnumerateProjectFilesAsync(FileNode project)
@@ -91,32 +78,20 @@ public partial class MainViewModel : ReactiveViewModel
          return await _discoveryService
             .EnumerateFileTreeAsync(project.Path, CancellationToken.None)
             .ConfigureAwait(false);
-        
-        
     }
 
     private async Task<IEnumerable<SymbolNode>> ExtractSymbolsForFileAsync(FileNode file)
     {
-        var symbols = await _roslynAnalyzer
+        return await _roslynAnalyzer
             .ExtractSymbolsAsync(file.Path, CancellationToken.None)
             .ConfigureAwait(false);
-
-        return symbols;
     }
 
-    private async Task<IEnumerable<GraphNode>> ExtractDependenciesForSymbol(SymbolNode symbol, CancellationToken ct)
+    private async Task<IEnumerable<GraphNode>> ExtractDependenciesForSymbolAsync(SymbolNode symbol)
     {
-        try
-        {
-            var deps = await _roslynAnalyzer.ExtractDependenciesAsync(symbol, ct).ConfigureAwait(false);
-            return deps;
-        }
-        catch
-        {
-            return Enumerable.Empty<GraphNode>();
-        }
+        return await _roslynAnalyzer
+            .ExtractDependenciesAsync(symbol, CancellationToken.None)
+            .ConfigureAwait(false);
     }
-
-
 }
 

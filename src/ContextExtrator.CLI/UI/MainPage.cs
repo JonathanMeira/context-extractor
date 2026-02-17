@@ -17,32 +17,6 @@ public class MainPage : ReactivePage<MainViewModel>
     {
         base.OnBound();
 
-        // Start analysis on Enter key
-        ViewModel.Input.OfType<KeyPressed>()
-            .Where(k => k.KeyInfo.Key == ConsoleKey.Enter && !ViewModel.IsAnalyzing)
-            .Subscribe(_ =>
-            {
-                //var task = ViewModel.StartAnalysis();
-            })
-            .DisposeWith(Subscriptions);
-
-        // Cancel analysis or exit on ESC key
-        ViewModel.Input.OfType<KeyPressed>()
-            .Where(k => k.KeyInfo.Key == ConsoleKey.Escape)
-            .Subscribe(_ =>
-            {
-                if (ViewModel.IsAnalyzing)
-                {
-                    ViewModel.CancelAnalysis();
-                }
-                else
-                {
-                    // Exit the application
-                    Environment.Exit(0);
-                }
-            })
-            .DisposeWith(Subscriptions);
-
         ViewModel.Input.OfType<KeyPressed>()
             .Where(k => k.KeyInfo.Key == ConsoleKey.Tab)
             .Subscribe(k =>
