@@ -50,29 +50,33 @@ public partial class MainViewModel : ReactiveViewModel
             .DisposeWith(Subscriptions);
 
         SelectedProjectFileChanged
-            .Where(f => f != null)
-            .SelectMany(selectedProject => Observable.FromAsync(async () => await EnumerateProjectFilesAsync(selectedProject!)))
-            .Subscribe()
-            .DisposeWith(Subscriptions);
-
-        // When file selection changes, extract symbols for that file (only if a project is selected)
-        SelectedFileChanged
-            .Where(f => f != null && SelectedProjectFile != null)
-            .Do(_ => 
+            .Where(f => f is not null)
+            .Do(_ =>
             {
-                // Clear dependent data
+                SelectedFile = null;
+                Symbols = [];
                 SelectedSymbol = null;
-                Dependencies = new List<GraphNode>();
+                Dependencies = [];
             })
-            .SelectMany(file => ExtractSymbolsForFile(file!, _analysisCancellation?.Token ?? CancellationToken.None))
-            .Subscribe(symbols => Symbols = symbols.ToList())
+            .SelectMany(selectedProject => Observable.FromAsync(() => EnumerateProjectFilesAsync(selectedProject!)))
+            .Subscribe(tree => FileTree = [.. tree])
             .DisposeWith(Subscriptions);
 
-        // When symbol selection changes, extract dependencies for that symbol (only if a project is selected)
+        SelectedFileChanged
+            .Where(f => f is not null)
+            .Do(_ =>
+            {
+                SelectedSymbol = null;
+                Dependencies = [];
+            })
+            .SelectMany(file => Observable.FromAsync(() => ExtractSymbolsForFileAsync(file!)))
+            .Subscribe(symbols => Symbols = [.. symbols])
+            .DisposeWith(Subscriptions);
+
         SelectedSymbolChanged
             .Where(s => s != null && SelectedProjectFile != null)
             .SelectMany(symbol => ExtractDependenciesForSymbol(symbol!, _analysisCancellation?.Token ?? CancellationToken.None))
-            .Subscribe(deps => Dependencies = deps.ToList())
+            .Subscribe(deps => Dependencies = [.. deps])
             .DisposeWith(Subscriptions);
     }
 
@@ -82,28 +86,22 @@ public partial class MainViewModel : ReactiveViewModel
         IsAnalyzing = false;
     }
 
-    private async Task EnumerateProjectFilesAsync(FileNode project)
+    private async Task<IEnumerable<FileTreeNode>> EnumerateProjectFilesAsync(FileNode project)
     {
-        SelectedFile = null;
-        Symbols = [];
-        SelectedSymbol = null;
-        Dependencies = [];
-
-        IEnumerable<FileTreeNode> tree = await _discoveryService.EnumerateFileTreeAsync(project.Path, CancellationToken.None).ConfigureAwait(false);
-        FileTree = [.. tree];
+         return await _discoveryService
+            .EnumerateFileTreeAsync(project.Path, CancellationToken.None)
+            .ConfigureAwait(false);
+        
+        
     }
 
-    private async Task<IEnumerable<SymbolNode>> ExtractSymbolsForFile(FileNode file, CancellationToken ct)
+    private async Task<IEnumerable<SymbolNode>> ExtractSymbolsForFileAsync(FileNode file)
     {
-        try
-        {
-            var symbols = await _roslynAnalyzer.ExtractSymbolsAsync(file.Path, ct).ConfigureAwait(false);
-            return symbols;
-        }
-        catch
-        {
-            return Enumerable.Empty<SymbolNode>();
-        }
+        var symbols = await _roslynAnalyzer
+            .ExtractSymbolsAsync(file.Path, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        return symbols;
     }
 
     private async Task<IEnumerable<GraphNode>> ExtractDependenciesForSymbol(SymbolNode symbol, CancellationToken ct)
@@ -119,6 +117,6 @@ public partial class MainViewModel : ReactiveViewModel
         }
     }
 
-    
+
 }
 

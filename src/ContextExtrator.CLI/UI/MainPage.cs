@@ -1,4 +1,3 @@
-using System.Reactive.Linq;
 using ContextExtrator.Domain.Models;
 using System.Reactive.Linq;
 using Termina.Extensions;
@@ -21,8 +20,8 @@ public class MainPage : ReactivePage<MainViewModel>
         // Start analysis on Enter key
         ViewModel.Input.OfType<KeyPressed>()
             .Where(k => k.KeyInfo.Key == ConsoleKey.Enter && !ViewModel.IsAnalyzing)
-            .Subscribe(_ => 
-            { 
+            .Subscribe(_ =>
+            {
                 //var task = ViewModel.StartAnalysis();
             })
             .DisposeWith(Subscriptions);
@@ -175,8 +174,11 @@ public class MainPage : ReactivePage<MainViewModel>
                                         node.SelectionConfirmed
                                             .Subscribe(selected =>
                                             {
-                                                if (selected.FirstOrDefault() is FileNode file && !file.IsDirectory)
-                                                    ViewModel.SelectedFile = file;
+                                                bool isDirectory = selected[0].IsDirectory;
+                                                if (!isDirectory)
+                                                {
+                                                    ViewModel.SelectedFile = selected[0];
+                                                }
                                             })
                                             .DisposeWith(Subscriptions);
 

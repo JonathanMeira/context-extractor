@@ -54,9 +54,9 @@ public class RoslynAnalyzer : IRoslynAnalyzer
             project = solution.Projects.FirstOrDefault();
         }
 
-        project ??= await _workspace.OpenProjectAsync(projectFilePath, null, ct).ConfigureAwait(false);
-
-        foreach (Document document in project?.Documents ?? [])
+        _currentProject ??= await _workspace.OpenProjectAsync(projectFilePath, null, ct).ConfigureAwait(false);
+        
+        foreach (Document document in _currentProject?.Documents ?? [])
         {
             ct.ThrowIfCancellationRequested();
 
